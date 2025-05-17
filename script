@@ -1,0 +1,54 @@
+# Define output path
+$outputPath = "C:\AD_User_Report.xlsx"
+
+# Import required module
+Import-Module ActiveDirectory
+Import-Module ImportExcel
+
+# Get AD users
+$users = Get-ADUser -Filter * -Properties `
+    employeeNumber, employeeID, SamAccountName, Description, DistinguishedName, `
+    extensionAttribute15, LogonScript, edsva-dormancyexempt, LastLogonTimestamp, `
+    PasswordLastSet, whenCreated, barclays-UserAccountType, ACCOUNT_TYPE, `
+    PDM_EMAIL, Manager, Name, Enabled
+
+# Process users
+$results = foreach ($user in $users) {
+    # Get manager email if manager DN exists
+    $managerEmail = if ($user.Manager) {
+        (Get-ADUser -Identity $user.Manager -Properties PDM_EMAIL).PDM_EMAIL
+    } else {
+        $null
+    }
+
+    # Extract parent container from DN
+    $dnParts = $user.DistinguishedName -split ','
+    $parentContainer = ($dnParts | Select-Object -Skip 1) -join ','
+
+    [PSCustomObject]@{
+        employeeNumber           = $user.employeeNumber
+        employeeID               = $user.employeeID
+        SamAccountName           = $user.SamAccountName
+        Description              = $user.Description
+        DN                       = $user.DistinguishedName
+        ParentContainer          = $parentContainer
+        Name                     = $user.Name
+        AccountState             = if ($user.Enabled) { "Enabled" } else { "Disabled" }
+        PDM_EMAIL                = $user.PDM_EMAIL
+        Manager                  = $user.Manager
+        ManagerEmail             = $managerEmail
+        extensionAttribute15     = $user.extensionAttribute15
+        LogonScript              = $user.LogonScript
+        edsva-dormancyexempt     = $user.'edsva-dormancyexempt'
+        LastLogonTimestamp       = [DateTime]::FromFileTime($user.LastLogonTimestamp)
+        PasswordLastSet          = $user.PasswordLastSet
+        whenCreated              = $user.whenCreated
+        barclays_UserAccountType = $user.'barclays-UserAccountType'
+        ACCOUNT_TYPE             = $user.ACCOUNT_TYPE
+    }
+}
+
+# Export to Excel
+$results | Export-Excel -Path $outputPath -WorksheetName "AD Users" -AutoSize -TableName "ADUserData" -TableStyle Medium6
+
+Write-Host "Export completed: $outputPath"
