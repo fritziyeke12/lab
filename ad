@@ -1,0 +1,12 @@
+Get-ADUser -Filter * -Properties UserPrincipalName, sAMAccountName, LastLogonTimestamp | Where-Object {
+    $_.UserPrincipalName -and ($_.UserPrincipalName -match '(?i)(svc|sys|srv)')
+} | Select-Object Name, sAMAccountName, UserPrincipalName, @{
+    Name = 'LastLogonDate';
+    Expression = {
+        if ($_.LastLogonTimestamp) {
+            [DateTime]::FromFileTime($_.LastLogonTimestamp).ToLocalTime()
+        } else {
+            'Never logged on'
+        }
+    }
+}
